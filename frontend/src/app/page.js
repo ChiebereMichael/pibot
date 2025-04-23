@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authenticate, checkPiEnvironment } from "../utils/piNetwork";
 
 export default function Home() {
   const [secretPhrase, setSecretPhrase] = useState("");
@@ -11,24 +10,45 @@ export default function Home() {
 
   useEffect(() => {
     const initPi = async () => {
-      if (!checkPiEnvironment()) {
-        setError("Please open this app in Pi Browser");
-        return;
-      }
+      console.log("Window Pi object:", window.Pi);
+      console.log("Is Pi Browser:", typeof window !== 'undefined' && 'Pi' in window);
 
       try {
-        const authResult = await authenticate();
-        if (authResult) {
-          localStorage.setItem('piAuth', JSON.stringify(authResult));
-          router.push('/dashboard');
+        // Try to access Pi SDK
+        if (typeof window !== 'undefined' && window.Pi) {
+          console.log("Attempting Pi authentication...");
+          const scopes = ['payments'];
+          const auth = await window.Pi.authenticate(scopes);
+          console.log("Auth result:", auth);
+          
+          if (auth) {
+            localStorage.setItem('piAuth', JSON.stringify(auth));
+            router.push('/dashboard');
+          }
+        } else {
+          setError("Pi SDK not detected. Please ensure you're using Pi Browser.");
+          console.error("Pi SDK not found in window object");
         }
       } catch (error) {
-        setError(error.message);
+        console.error("Pi authentication error:", error);
+        setError(`Authentication failed: ${error.message}`);
       }
     };
 
     initPi();
   }, [router]);
+
+  const handleAuthClick = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      await initPi();
+    } catch (error) {
+      setError(`Manual authentication failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-black to-zinc-900 text-white">
@@ -60,6 +80,7 @@ export default function Home() {
           </div>
 
           <button
+            onClick={handleAuthClick}
             disabled={isLoading}
             className={`bg-white text-black px-8 py-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-white/10 ${
               isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-100'
@@ -74,7 +95,7 @@ export default function Home() {
                 Validating...
               </span>
             ) : (
-              'Continue to Dashboard'
+              'Connect Pi Wallet'
             )}
           </button>
         </div>
