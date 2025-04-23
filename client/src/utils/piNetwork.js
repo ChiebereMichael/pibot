@@ -1,3 +1,6 @@
+// Remove Pi import and init since SDK is injected by Pi Browser
+const isPiBrowser = typeof window !== 'undefined' && 'Pi' in window;
+
 // Pi Network API endpoints
 const API_BASE_URL = 'https://api.minepi.com';
 const TESTNET_API_BASE_URL = 'https://api.testnet.minepi.com';
@@ -121,4 +124,65 @@ export const transferPi = async (secretPhrase, destinationAddress, amount) => {
       error: error.message
     };
   }
-}; 
+};
+
+// Export authentication check
+export const checkPiEnvironment = () => {
+  return typeof window !== 'undefined' && 'Pi' in window;
+};
+
+// Export authenticate function
+export const authenticate = async () => {
+  if (!checkPiEnvironment()) {
+    throw new Error('This app must run in Pi Browser');
+  }
+
+  try {
+    const scopes = ['payments'];
+    const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+    return auth;
+  } catch (error) {
+    console.error('Authentication failed:', error);
+    throw error;
+  }
+};
+
+// Handler for incomplete payments
+const onIncompletePaymentFound = async (payment) => {
+  try {
+    // Verify the payment on your backend
+    const verifyResult = await fetch('/api/verify-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ paymentId: payment.identifier })
+    });
+    
+    if (verifyResult.ok) {
+      await window.Pi.complete(payment.identifier);
+    }
+  } catch (error) {
+    console.error('Failed to handle incomplete payment:', error);
+  }
+};
+
+// Create a payment request
+export const createPayment = async (amount, memo, metadata) => {
+  if (!isPiBrowser) {
+    throw new Error('This app must run in Pi Browser');
+  }
+
+  try {
+    const payment = await window.Pi.createPayment({
+      amount: parseFloat(amount),
+      memo,
+      metadata,
+    });
+
+    return payment;
+  } catch (error) {
+    console.error('Payment creation failed:', error);
+    throw error;
+  }
+};

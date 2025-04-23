@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { validateSecretPhrase } from "./piNetwork";
+import { authenticate, checkPiEnvironment } from "../utils/piNetwork";
 
 export default function Home() {
   const [secretPhrase, setSecretPhrase] = useState("");
@@ -10,50 +10,25 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if secret phrase is already set
-    const savedPhrase = localStorage.getItem('piSecretPhrase');
-    if (savedPhrase) {
-      router.push('/dashboard');
-    }
-  }, [router]);
-
-  const handleSavePhrase = async () => {
-    if (!secretPhrase) {
-      setError("Please enter your secret phrase");
-      return;
-    }
-
-    // Validate the secret phrase (should be 12 or 24 words)
-    const words = secretPhrase.trim().split(/\s+/);
-    if (words.length !== 12 && words.length !== 24) {
-      setError("Secret phrase must be 12 or 24 words");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-    
-    try {
-      // Validate the secret phrase with Pi Network
-      const result = await validateSecretPhrase(secretPhrase);
-      
-      if (!result.success) {
-        setError(result.error || "Invalid secret phrase");
+    const initPi = async () => {
+      if (!checkPiEnvironment()) {
+        setError("Please open this app in Pi Browser");
         return;
       }
-      
-      // Save the secret phrase and wallet address
-      localStorage.setItem('piSecretPhrase', secretPhrase);
-      localStorage.setItem('piWalletAddress', result.address);
-      
-      // Redirect to dashboard
-      router.push('/dashboard');
-    } catch (error) {
-      setError("Failed to validate secret phrase: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+      try {
+        const authResult = await authenticate();
+        if (authResult) {
+          localStorage.setItem('piAuth', JSON.stringify(authResult));
+          router.push('/dashboard');
+        }
+      } catch (error) {
+        setError(error.message);
+      }
+    };
+
+    initPi();
+  }, [router]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-black to-zinc-900 text-white">
@@ -85,7 +60,6 @@ export default function Home() {
           </div>
 
           <button
-            onClick={handleSavePhrase}
             disabled={isLoading}
             className={`bg-white text-black px-8 py-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-white/10 ${
               isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-100'
