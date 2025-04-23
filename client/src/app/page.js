@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { validateSecretPhrase } from "../utils/piNetwork";
+import { validateSecretPhrase } from "./piNetwork";
 
 export default function Home() {
   const [secretPhrase, setSecretPhrase] = useState("");

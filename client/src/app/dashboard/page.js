@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { transferPi, getWalletBalance } from "../utils/piNetwork";
+import { transferPi, getWalletBalance } from "../piNetwork";
 
 export default function Dashboard() {
   const [secretPhrase, setSecretPhrase] = useState("");
