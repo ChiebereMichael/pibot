@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { transferPi, getWalletBalance, createPayment } from "../piNetwork";
+import { transferPi, getWalletBalance } from "../piNetwork";
 
 export default function Dashboard() {
   const [secretPhrase, setSecretPhrase] = useState("");
@@ -71,17 +71,20 @@ export default function Dashboard() {
 
     setIsLoading(true);
     setError("");
-
+    
     try {
-      const payment = await createPayment(parseFloat(amount), `Transfer to ${destWallet}`, {
-        destination: destWallet,
-      });
-
-      if (payment) {
-        alert(`Transfer of ${amount} Pi to ${destWallet} successful!`);
-        setAmount("");
-        await loadBalance();
+      const result = await transferPi(secretPhrase, destWallet, parseFloat(amount));
+      
+      if (!result.success) {
+        setError(result.error || "Transfer failed");
+        return;
       }
+      
+      alert(`Transfer of ${amount} Pi to ${destWallet} successful! Transaction ID: ${result.transactionId}`);
+      setAmount("");
+      
+      // Reload balance after transfer
+      await loadBalance();
     } catch (error) {
       setError("Transfer failed: " + error.message);
     } finally {
@@ -196,4 +199,4 @@ export default function Dashboard() {
       </main>
     </div>
   );
-}
+} 
